@@ -91,7 +91,7 @@ def categorize_columns(columns, category_keywords):
     return categorized, uncategorized
 
 
-def create_student_excel(df, id_column, first_name_column, last_name_column, category_keywords, show_category_averages, category_max_points=None):
+def create_student_excel(df, id_column, first_name_column, last_name_column, category_keywords, show_category_averages, category_max_points=None, category_weights=None):
     """Create an Excel file with each student on their own sheet."""
     output = io.BytesIO()
     wb = Workbook()
@@ -114,6 +114,7 @@ def create_student_excel(df, id_column, first_name_column, last_name_column, cat
     header_font_white = Font(bold=True, size=12, color="FFFFFF")
     category_fill = PatternFill(start_color="B4C6E7", end_color="B4C6E7", fill_type="solid")
     category_font = Font(bold=True, size=11)
+    weight_fill = PatternFill(start_color="FCE4D6", end_color="FCE4D6", fill_type="solid")  # Light orange for weighted section
     border = Border(
         left=Side(style='thin'),
         right=Side(style='thin'),
@@ -125,6 +126,10 @@ def create_student_excel(df, id_column, first_name_column, last_name_column, cat
     # Initialize category_max_points if not provided
     if category_max_points is None:
         category_max_points = {}
+
+    # Initialize category_weights if not provided
+    if category_weights is None:
+        category_weights = {}
 
     # Create a sheet for each student
     for idx, row in df.iterrows():
@@ -291,15 +296,58 @@ def create_student_excel(df, id_column, first_name_column, last_name_column, cat
 
             current_row += 1
 
-        # Add overall final grade
-        if all_grades and all_max_points:
-            total_earned = sum(all_grades)
-            total_possible = sum(all_max_points)
-            final_percentage = (total_earned / total_possible * 100) if total_possible > 0 else 0
-            ws.cell(row=current_row, column=1, value="FINAL GRADE")
-            ws.cell(row=current_row, column=2, value=f"{round(final_percentage, 2)}%")
-            ws.cell(row=current_row, column=3, value=f"{total_earned}/{total_possible}")
-            for col in range(1, 4):
+        # Add weighted grades section
+        if category_weights and category_averages:
+            # Header for weighted grades section
+            ws.cell(row=current_row, column=1, value="WEIGHTED GRADES")
+            ws.cell(row=current_row, column=1).font = header_font_white
+            for col in range(1, 5):
+                ws.cell(row=current_row, column=col).fill = header_fill
+                ws.cell(row=current_row, column=col).border = border
+            ws.merge_cells(start_row=current_row, start_column=1, end_row=current_row, end_column=4)
+            current_row += 1
+
+            # Column headers for weighted section
+            ws.cell(row=current_row, column=1, value="Category")
+            ws.cell(row=current_row, column=2, value="Score (%)")
+            ws.cell(row=current_row, column=3, value="Weight (%)")
+            ws.cell(row=current_row, column=4, value="Weighted Score")
+            for col in range(1, 5):
+                ws.cell(row=current_row, column=col).font = category_font
+                ws.cell(row=current_row, column=col).fill = weight_fill
+                ws.cell(row=current_row, column=col).border = border
+                ws.cell(row=current_row, column=col).alignment = center_align
+            current_row += 1
+
+            # Calculate weighted scores for each category
+            total_weighted_score = 0
+            total_weight_used = 0
+
+            for category, avg_percentage in category_averages.items():
+                weight = category_weights.get(category, 0)
+                weighted_score = (avg_percentage * weight) / 100 if weight > 0 else 0
+
+                ws.cell(row=current_row, column=1, value=category)
+                ws.cell(row=current_row, column=2, value=f"{round(avg_percentage, 2)}%")
+                ws.cell(row=current_row, column=3, value=f"{weight}%")
+                ws.cell(row=current_row, column=4, value=round(weighted_score, 2))
+                for col in range(1, 5):
+                    ws.cell(row=current_row, column=col).border = border
+                ws.cell(row=current_row, column=2).alignment = center_align
+                ws.cell(row=current_row, column=3).alignment = center_align
+                ws.cell(row=current_row, column=4).alignment = center_align
+
+                total_weighted_score += weighted_score
+                total_weight_used += weight
+                current_row += 1
+
+            current_row += 1
+
+            # Final weighted grade
+            ws.cell(row=current_row, column=1, value="FINAL WEIGHTED GRADE")
+            ws.cell(row=current_row, column=2, value=f"{round(total_weighted_score, 2)}%")
+            ws.cell(row=current_row, column=3, value=f"(of {total_weight_used}%)")
+            for col in range(1, 5):
                 ws.cell(row=current_row, column=col).font = Font(bold=True, size=12)
                 ws.cell(row=current_row, column=col).fill = PatternFill(start_color="70AD47", end_color="70AD47", fill_type="solid")
                 ws.cell(row=current_row, column=col).border = border
@@ -310,6 +358,7 @@ def create_student_excel(df, id_column, first_name_column, last_name_column, cat
         ws.column_dimensions['A'].width = 35
         ws.column_dimensions['B'].width = 15
         ws.column_dimensions['C'].width = 15
+        ws.column_dimensions['D'].width = 15
 
     wb.save(output)
     output.seek(0)
@@ -387,7 +436,7 @@ def main():
                 "Exams": ["exam", "test", "midterm", "final"],
                 "Assignments": ["assignment", "homework", "hw"],
                 "Participation": ["participation", "attendance"],
-                "Quizzes": ["quiz"]
+                "El Civics": ["el civics", "civics", "elcivics"]
             }
 
         # Initialize session state for category max points
@@ -396,8 +445,18 @@ def main():
                 "Exams": 100,
                 "Assignments": 100,
                 "Participation": 1,
-                "Quizzes": 100,
+                "El Civics": 100,
                 "Other": 100
+            }
+
+        # Initialize session state for category weights (percentages)
+        if 'category_weights' not in st.session_state:
+            st.session_state.category_weights = {
+                "Exams": 25,
+                "Assignments": 25,
+                "Participation": 30,
+                "El Civics": 20,
+                "Other": 0
             }
 
         # Display existing categories
@@ -424,6 +483,18 @@ def main():
                 )
                 st.session_state.category_max_points[category] = new_max
 
+                # Weight percentage for this category
+                current_weight = st.session_state.category_weights.get(category, 0)
+                new_weight = st.number_input(
+                    "Weight (%)",
+                    min_value=0,
+                    max_value=100,
+                    value=current_weight,
+                    key=f"weight_{category}",
+                    help=f"Weight of {category} in final grade calculation (all weights should sum to 100%)"
+                )
+                st.session_state.category_weights[category] = new_weight
+
                 if st.button(f"🗑️ Remove {category}", key=f"remove_{category}"):
                     categories_to_remove.append(category)
 
@@ -432,6 +503,8 @@ def main():
             del st.session_state.categories[cat]
             if cat in st.session_state.category_max_points:
                 del st.session_state.category_max_points[cat]
+            if cat in st.session_state.category_weights:
+                del st.session_state.category_weights[cat]
             st.rerun()
 
         # Other category max points (for uncategorized items)
@@ -445,6 +518,25 @@ def main():
             )
             st.session_state.category_max_points["Other"] = other_max
 
+            other_weight = st.number_input(
+                "Weight (%)",
+                min_value=0,
+                max_value=100,
+                value=st.session_state.category_weights.get("Other", 0),
+                key="weight_Other",
+                help="Weight of uncategorized items in final grade calculation"
+            )
+            st.session_state.category_weights["Other"] = other_weight
+
+        # Show total weight
+        total_weight = sum(st.session_state.category_weights.values())
+        if total_weight == 100:
+            st.success(f"Total weight: {total_weight}%")
+        elif total_weight < 100:
+            st.warning(f"Total weight: {total_weight}% (should be 100%)")
+        else:
+            st.error(f"Total weight: {total_weight}% (exceeds 100%)")
+
         st.divider()
 
         # Add new category
@@ -452,6 +544,7 @@ def main():
         new_category_name = st.text_input("Category name", placeholder="e.g., Projects")
         new_category_keywords = st.text_input("Keywords (comma-separated)", placeholder="e.g., project, proj")
         new_category_max_points = st.number_input("Max points per item", min_value=1, value=100, key="new_category_max")
+        new_category_weight = st.number_input("Weight (%)", min_value=0, max_value=100, value=0, key="new_category_weight")
 
         if st.button("➕ Add Category"):
             if new_category_name and new_category_keywords:
@@ -459,6 +552,7 @@ def main():
                 if keywords_list:
                     st.session_state.categories[new_category_name] = keywords_list
                     st.session_state.category_max_points[new_category_name] = new_category_max_points
+                    st.session_state.category_weights[new_category_name] = new_category_weight
                     st.success(f"Added category: {new_category_name}")
                     st.rerun()
             else:
@@ -571,7 +665,8 @@ def main():
                             last_name_column,
                             st.session_state.categories,
                             show_category_averages,
-                            st.session_state.category_max_points
+                            st.session_state.category_max_points,
+                            st.session_state.category_weights
                         )
 
                         st.success("✅ Excel file generated successfully!")
@@ -587,7 +682,8 @@ def main():
                                 <li>All assignments organized by category</li>
                                 <li>Scores with max points</li>
                                 {"<li>Category averages (%)</li>" if show_category_averages else ""}
-                                <li>Overall final grade (percentage)</li>
+                                <li>Weighted grades breakdown by category</li>
+                                <li>Final weighted grade</li>
                             </ul>
                         </div>
                         """, unsafe_allow_html=True)
