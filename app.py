@@ -91,7 +91,7 @@ def categorize_columns(columns, category_keywords):
     return categorized, uncategorized
 
 
-def create_student_excel(df, name_column, category_keywords, show_category_averages):
+def create_student_excel(df, id_column, first_name_column, last_name_column, category_keywords, show_category_averages, category_max_points=None):
     """Create an Excel file with each student on their own sheet."""
     output = io.BytesIO()
     wb = Workbook()
@@ -99,8 +99,11 @@ def create_student_excel(df, name_column, category_keywords, show_category_avera
     # Remove default sheet
     wb.remove(wb.active)
 
-    # Get grade columns (all columns except the name column)
-    grade_columns = [col for col in df.columns if col != name_column]
+    # Columns to exclude from grade columns (student identifier columns)
+    identifier_columns = [id_column, first_name_column, last_name_column]
+
+    # Get grade columns (all columns except the identifier columns)
+    grade_columns = [col for col in df.columns if col not in identifier_columns]
 
     # Categorize columns
     categorized, uncategorized = categorize_columns(grade_columns, category_keywords)
@@ -119,15 +122,28 @@ def create_student_excel(df, name_column, category_keywords, show_category_avera
     )
     center_align = Alignment(horizontal='center', vertical='center')
 
+    # Initialize category_max_points if not provided
+    if category_max_points is None:
+        category_max_points = {}
+
     # Create a sheet for each student
-    for _, row in df.iterrows():
-        student_name = str(row[name_column]).strip()
+    for idx, row in df.iterrows():
+        student_id = str(row[id_column]).strip() if pd.notna(row[id_column]) else ""
+        first_name = str(row[first_name_column]).strip() if pd.notna(row[first_name_column]) else ""
+        last_name = str(row[last_name_column]).strip() if pd.notna(row[last_name_column]) else ""
+
+        # Skip rows where ID, first name, and last name are all empty
+        if not student_id and not first_name and not last_name:
+            continue
+
+        # Create sheet name as "Last Name, First Name"
+        sheet_name = f"{last_name}, {first_name}"
 
         # Sanitize sheet name (Excel has restrictions)
-        safe_name = student_name[:31]  # Max 31 chars
+        safe_name = sheet_name[:31]  # Max 31 chars
         safe_name = ''.join(c for c in safe_name if c not in '[]:*?/\\')
-        if not safe_name:
-            safe_name = f"Student_{_}"
+        if not safe_name or safe_name == ", ":
+            safe_name = f"Student_{idx}"
 
         # Handle duplicate sheet names
         original_name = safe_name
@@ -138,27 +154,36 @@ def create_student_excel(df, name_column, category_keywords, show_category_avera
 
         ws = wb.create_sheet(title=safe_name)
 
-        # Add student name header
-        ws['A1'] = "Student Name:"
-        ws['B1'] = student_name
+        # Add student identifier info at top of sheet
+        ws['A1'] = "ID:"
+        ws['B1'] = student_id
         ws['A1'].font = header_font
-        ws['B1'].font = Font(bold=True, size=14)
+        ws['B1'].font = Font(bold=True, size=12)
 
-        current_row = 3
+        ws['A2'] = "First Name:"
+        ws['B2'] = first_name
+        ws['A2'].font = header_font
+        ws['B2'].font = Font(bold=True, size=12)
+
+        ws['A3'] = "Last Name:"
+        ws['B3'] = last_name
+        ws['A3'].font = header_font
+        ws['B3'].font = Font(bold=True, size=12)
+
+        current_row = 5  # Start after ID, First Name, Last Name, and a blank row
         all_grades = []
+        all_max_points = []
         category_averages = {}
 
         # Add headers
         ws.cell(row=current_row, column=1, value="Assignment")
         ws.cell(row=current_row, column=2, value="Score")
-        ws.cell(row=current_row, column=1).font = header_font_white
-        ws.cell(row=current_row, column=2).font = header_font_white
-        ws.cell(row=current_row, column=1).fill = header_fill
-        ws.cell(row=current_row, column=2).fill = header_fill
-        ws.cell(row=current_row, column=1).border = border
-        ws.cell(row=current_row, column=2).border = border
-        ws.cell(row=current_row, column=1).alignment = center_align
-        ws.cell(row=current_row, column=2).alignment = center_align
+        ws.cell(row=current_row, column=3, value="Max Points")
+        for col in range(1, 4):
+            ws.cell(row=current_row, column=col).font = header_font_white
+            ws.cell(row=current_row, column=col).fill = header_fill
+            ws.cell(row=current_row, column=col).border = border
+            ws.cell(row=current_row, column=col).alignment = center_align
 
         current_row += 1
 
@@ -167,14 +192,17 @@ def create_student_excel(df, name_column, category_keywords, show_category_avera
             # Category header
             ws.cell(row=current_row, column=1, value=category.upper())
             ws.cell(row=current_row, column=1).font = category_font
-            ws.cell(row=current_row, column=1).fill = category_fill
-            ws.cell(row=current_row, column=2).fill = category_fill
-            ws.cell(row=current_row, column=1).border = border
-            ws.cell(row=current_row, column=2).border = border
-            ws.merge_cells(start_row=current_row, start_column=1, end_row=current_row, end_column=2)
+            for col in range(1, 4):
+                ws.cell(row=current_row, column=col).fill = category_fill
+                ws.cell(row=current_row, column=col).border = border
+            ws.merge_cells(start_row=current_row, start_column=1, end_row=current_row, end_column=3)
             current_row += 1
 
+            # Get max points for this category
+            max_points = category_max_points.get(category, 100)
+
             category_grades = []
+            category_max = []
             for col in columns:
                 try:
                     grade = float(row[col]) if pd.notna(row[col]) and row[col] != '' else 0
@@ -183,30 +211,39 @@ def create_student_excel(df, name_column, category_keywords, show_category_avera
 
                 ws.cell(row=current_row, column=1, value=col)
                 ws.cell(row=current_row, column=2, value=grade)
-                ws.cell(row=current_row, column=1).border = border
-                ws.cell(row=current_row, column=2).border = border
+                ws.cell(row=current_row, column=3, value=max_points)
+                for c in range(1, 4):
+                    ws.cell(row=current_row, column=c).border = border
                 ws.cell(row=current_row, column=2).alignment = center_align
+                ws.cell(row=current_row, column=3).alignment = center_align
 
                 category_grades.append(grade)
+                category_max.append(max_points)
                 all_grades.append(grade)
+                all_max_points.append(max_points)
                 current_row += 1
 
-            # Calculate category average
-            if category_grades:
-                category_averages[category] = sum(category_grades) / len(category_grades)
+            # Calculate category average as percentage
+            if category_grades and category_max:
+                total_earned = sum(category_grades)
+                total_possible = sum(category_max)
+                category_averages[category] = (total_earned / total_possible * 100) if total_possible > 0 else 0
 
         # Add uncategorized grades
         if uncategorized:
             ws.cell(row=current_row, column=1, value="OTHER")
             ws.cell(row=current_row, column=1).font = category_font
-            ws.cell(row=current_row, column=1).fill = category_fill
-            ws.cell(row=current_row, column=2).fill = category_fill
-            ws.cell(row=current_row, column=1).border = border
-            ws.cell(row=current_row, column=2).border = border
-            ws.merge_cells(start_row=current_row, start_column=1, end_row=current_row, end_column=2)
+            for col in range(1, 4):
+                ws.cell(row=current_row, column=col).fill = category_fill
+                ws.cell(row=current_row, column=col).border = border
+            ws.merge_cells(start_row=current_row, start_column=1, end_row=current_row, end_column=3)
             current_row += 1
 
+            # Get max points for "Other" category
+            other_max_points = category_max_points.get("Other", 100)
+
             other_grades = []
+            other_max = []
             for col in uncategorized:
                 try:
                     grade = float(row[col]) if pd.notna(row[col]) and row[col] != '' else 0
@@ -215,56 +252,64 @@ def create_student_excel(df, name_column, category_keywords, show_category_avera
 
                 ws.cell(row=current_row, column=1, value=col)
                 ws.cell(row=current_row, column=2, value=grade)
-                ws.cell(row=current_row, column=1).border = border
-                ws.cell(row=current_row, column=2).border = border
+                ws.cell(row=current_row, column=3, value=other_max_points)
+                for c in range(1, 4):
+                    ws.cell(row=current_row, column=c).border = border
                 ws.cell(row=current_row, column=2).alignment = center_align
+                ws.cell(row=current_row, column=3).alignment = center_align
 
                 other_grades.append(grade)
+                other_max.append(other_max_points)
                 all_grades.append(grade)
+                all_max_points.append(other_max_points)
                 current_row += 1
 
-            if other_grades:
-                category_averages["Other"] = sum(other_grades) / len(other_grades)
+            if other_grades and other_max:
+                total_earned = sum(other_grades)
+                total_possible = sum(other_max)
+                category_averages["Other"] = (total_earned / total_possible * 100) if total_possible > 0 else 0
 
         current_row += 1
 
         # Add category averages if enabled
         if show_category_averages and category_averages:
-            ws.cell(row=current_row, column=1, value="CATEGORY AVERAGES")
+            ws.cell(row=current_row, column=1, value="CATEGORY AVERAGES (%)")
             ws.cell(row=current_row, column=1).font = header_font_white
-            ws.cell(row=current_row, column=1).fill = header_fill
-            ws.cell(row=current_row, column=2).fill = header_fill
-            ws.cell(row=current_row, column=1).border = border
-            ws.cell(row=current_row, column=2).border = border
-            ws.merge_cells(start_row=current_row, start_column=1, end_row=current_row, end_column=2)
+            for col in range(1, 4):
+                ws.cell(row=current_row, column=col).fill = header_fill
+                ws.cell(row=current_row, column=col).border = border
+            ws.merge_cells(start_row=current_row, start_column=1, end_row=current_row, end_column=3)
             current_row += 1
 
             for category, avg in category_averages.items():
                 ws.cell(row=current_row, column=1, value=category)
-                ws.cell(row=current_row, column=2, value=round(avg, 4))
-                ws.cell(row=current_row, column=1).border = border
-                ws.cell(row=current_row, column=2).border = border
+                ws.cell(row=current_row, column=2, value=f"{round(avg, 2)}%")
+                for c in range(1, 4):
+                    ws.cell(row=current_row, column=c).border = border
                 ws.cell(row=current_row, column=2).alignment = center_align
                 current_row += 1
 
             current_row += 1
 
         # Add overall final grade
-        if all_grades:
-            final_grade = sum(all_grades) / len(all_grades)
+        if all_grades and all_max_points:
+            total_earned = sum(all_grades)
+            total_possible = sum(all_max_points)
+            final_percentage = (total_earned / total_possible * 100) if total_possible > 0 else 0
             ws.cell(row=current_row, column=1, value="FINAL GRADE")
-            ws.cell(row=current_row, column=2, value=round(final_grade, 4))
-            ws.cell(row=current_row, column=1).font = Font(bold=True, size=12)
-            ws.cell(row=current_row, column=2).font = Font(bold=True, size=12)
-            ws.cell(row=current_row, column=1).fill = PatternFill(start_color="70AD47", end_color="70AD47", fill_type="solid")
-            ws.cell(row=current_row, column=2).fill = PatternFill(start_color="70AD47", end_color="70AD47", fill_type="solid")
-            ws.cell(row=current_row, column=1).border = border
-            ws.cell(row=current_row, column=2).border = border
+            ws.cell(row=current_row, column=2, value=f"{round(final_percentage, 2)}%")
+            ws.cell(row=current_row, column=3, value=f"{total_earned}/{total_possible}")
+            for col in range(1, 4):
+                ws.cell(row=current_row, column=col).font = Font(bold=True, size=12)
+                ws.cell(row=current_row, column=col).fill = PatternFill(start_color="70AD47", end_color="70AD47", fill_type="solid")
+                ws.cell(row=current_row, column=col).border = border
             ws.cell(row=current_row, column=2).alignment = center_align
+            ws.cell(row=current_row, column=3).alignment = center_align
 
         # Adjust column widths
         ws.column_dimensions['A'].width = 35
         ws.column_dimensions['B'].width = 15
+        ws.column_dimensions['C'].width = 15
 
     wb.save(output)
     output.seek(0)
@@ -345,6 +390,16 @@ def main():
                 "Quizzes": ["quiz"]
             }
 
+        # Initialize session state for category max points
+        if 'category_max_points' not in st.session_state:
+            st.session_state.category_max_points = {
+                "Exams": 100,
+                "Assignments": 100,
+                "Participation": 1,
+                "Quizzes": 100,
+                "Other": 100
+            }
+
         # Display existing categories
         categories_to_remove = []
         for category in list(st.session_state.categories.keys()):
@@ -358,13 +413,37 @@ def main():
                 )
                 st.session_state.categories[category] = [k.strip() for k in new_keywords.split("\n") if k.strip()]
 
+                # Max points setting for this category
+                current_max = st.session_state.category_max_points.get(category, 100)
+                new_max = st.number_input(
+                    "Max points per item",
+                    min_value=1,
+                    value=current_max,
+                    key=f"max_points_{category}",
+                    help=f"Each item in {category} is out of this many points"
+                )
+                st.session_state.category_max_points[category] = new_max
+
                 if st.button(f"🗑️ Remove {category}", key=f"remove_{category}"):
                     categories_to_remove.append(category)
 
         # Remove marked categories
         for cat in categories_to_remove:
             del st.session_state.categories[cat]
+            if cat in st.session_state.category_max_points:
+                del st.session_state.category_max_points[cat]
             st.rerun()
+
+        # Other category max points (for uncategorized items)
+        with st.expander("📁 Other (uncategorized)", expanded=False):
+            other_max = st.number_input(
+                "Max points per item",
+                min_value=1,
+                value=st.session_state.category_max_points.get("Other", 100),
+                key="max_points_Other",
+                help="Each uncategorized item is out of this many points"
+            )
+            st.session_state.category_max_points["Other"] = other_max
 
         st.divider()
 
@@ -372,12 +451,14 @@ def main():
         st.subheader("Add New Category")
         new_category_name = st.text_input("Category name", placeholder="e.g., Projects")
         new_category_keywords = st.text_input("Keywords (comma-separated)", placeholder="e.g., project, proj")
+        new_category_max_points = st.number_input("Max points per item", min_value=1, value=100, key="new_category_max")
 
         if st.button("➕ Add Category"):
             if new_category_name and new_category_keywords:
                 keywords_list = [k.strip() for k in new_category_keywords.split(",") if k.strip()]
                 if keywords_list:
                     st.session_state.categories[new_category_name] = keywords_list
+                    st.session_state.category_max_points[new_category_name] = new_category_max_points
                     st.success(f"Added category: {new_category_name}")
                     st.rerun()
             else:
@@ -399,7 +480,7 @@ def main():
         st.subheader("📋 How It Works")
         st.markdown("""
         1. **Upload** your .numbers gradebook
-        2. **Select** the column containing student names
+        2. **Select** ID, First Name, and Last Name columns
         3. **Review** the detected categories
         4. **Download** the organized Excel file
         """)
@@ -416,19 +497,46 @@ def main():
                 st.subheader("📊 Data Preview")
                 st.dataframe(df.head(10), use_container_width=True)
 
-                st.info(f"📈 Found **{len(df)}** students and **{len(df.columns)}** columns")
+                st.info(f"📈 Found **{len(df)}** rows and **{len(df.columns)}** columns")
 
-                # Select name column
-                st.subheader("🏷️ Select Name Column")
-                name_column = st.selectbox(
-                    "Which column contains student names?",
-                    options=df.columns.tolist(),
-                    index=0
-                )
+                # Select student identifier columns
+                st.subheader("🏷️ Select Student Identifier Columns")
+                st.caption("Select the columns that contain student ID, first name, and last name. These will appear at the top of each student's sheet and will not be categorized as grades.")
+
+                col_options = df.columns.tolist()
+
+                id_col, fname_col, lname_col = st.columns(3)
+                with id_col:
+                    id_column = st.selectbox(
+                        "ID Column",
+                        options=col_options,
+                        index=0 if len(col_options) > 0 else None
+                    )
+                with fname_col:
+                    first_name_column = st.selectbox(
+                        "First Name Column",
+                        options=col_options,
+                        index=1 if len(col_options) > 1 else 0
+                    )
+                with lname_col:
+                    last_name_column = st.selectbox(
+                        "Last Name Column",
+                        options=col_options,
+                        index=2 if len(col_options) > 2 else 0
+                    )
+
+                # Count valid students (rows where at least one identifier is not empty)
+                identifier_columns = [id_column, first_name_column, last_name_column]
+                valid_students = df[
+                    (df[id_column].notna() & (df[id_column] != '')) |
+                    (df[first_name_column].notna() & (df[first_name_column] != '')) |
+                    (df[last_name_column].notna() & (df[last_name_column] != ''))
+                ]
+                st.info(f"📈 Found **{len(valid_students)}** valid students (excluding empty rows)")
 
                 # Show category detection preview
                 st.subheader("🗂️ Category Detection Preview")
-                grade_columns = [col for col in df.columns if col != name_column]
+                grade_columns = [col for col in df.columns if col not in identifier_columns]
                 categorized, uncategorized = categorize_columns(grade_columns, st.session_state.categories)
 
                 col1, col2 = st.columns(2)
@@ -458,9 +566,12 @@ def main():
                     with st.spinner("🔄 Creating Excel file with individual student sheets..."):
                         excel_output = create_student_excel(
                             df,
-                            name_column,
+                            id_column,
+                            first_name_column,
+                            last_name_column,
                             st.session_state.categories,
-                            show_category_averages
+                            show_category_averages,
+                            st.session_state.category_max_points
                         )
 
                         st.success("✅ Excel file generated successfully!")
@@ -469,14 +580,14 @@ def main():
                         st.markdown(f"""
                         <div class="success-box">
                             <h4>✨ Generation Complete!</h4>
-                            <p>Created <strong>{len(df)}</strong> individual student sheets</p>
+                            <p>Created <strong>{len(valid_students)}</strong> individual student sheets</p>
                             <p>Each sheet contains:</p>
                             <ul>
-                                <li>Student name</li>
+                                <li>Student ID, First Name, and Last Name</li>
                                 <li>All assignments organized by category</li>
-                                <li>Scores (0 or 1)</li>
-                                {"<li>Category averages</li>" if show_category_averages else ""}
-                                <li>Overall final grade (average of all scores)</li>
+                                <li>Scores with max points</li>
+                                {"<li>Category averages (%)</li>" if show_category_averages else ""}
+                                <li>Overall final grade (percentage)</li>
                             </ul>
                         </div>
                         """, unsafe_allow_html=True)
