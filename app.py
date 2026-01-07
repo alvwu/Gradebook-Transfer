@@ -961,22 +961,20 @@ def main():
                             st.success("✅ Excel file generated successfully!")
 
                             # Summary
-                            category_avg_item = "<li>Category averages (%)</li>" if show_category_averages else ""
-                            st.markdown(f"""
-                            <div class="success-box">
-                                <h4>✨ Generation Complete!</h4>
-                                <p>Created <strong>{len(valid_students)}</strong> individual student sheets</p>
-                                <p>Each sheet contains:</p>
-                                <ul>
-                                    <li>Student ID, First Name, and Last Name</li>
-                                    <li>All assignments organized by category</li>
-                                    <li>Scores with max points</li>
-                                    {category_avg_item}
-                                    <li>Weighted grades breakdown by category</li>
-                                    <li>Final weighted grade</li>
-                                </ul>
-                            </div>
-                            """, unsafe_allow_html=True)
+                            st.subheader("✨ Generation Complete!")
+                            st.write(f"Created **{len(valid_students)}** individual student sheets")
+                            st.write("Each sheet contains:")
+                            summary_items = [
+                                "Student ID, First Name, and Last Name",
+                                "All assignments organized by category",
+                                "Scores with max points"
+                            ]
+                            if show_category_averages:
+                                summary_items.append("Category averages (%)")
+                            summary_items.append("Weighted grades breakdown by category")
+                            summary_items.append("Final weighted grade")
+                            for item in summary_items:
+                                st.write(f"- {item}")
 
                             # Download button
                             st.download_button(
