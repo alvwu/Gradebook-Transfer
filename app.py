@@ -4,9 +4,70 @@ import zipfile
 import io
 import tempfile
 import os
+import re
+from datetime import datetime
+from dateutil import parser as date_parser
 from openpyxl import Workbook
 from openpyxl.styles import Font, Alignment, Border, Side, PatternFill
 from openpyxl.utils.dataframe import dataframe_to_rows
+
+
+def is_date_column(column_name):
+    """Check if a column name looks like a date."""
+    if not column_name or not isinstance(column_name, str):
+        return False
+
+    column_str = str(column_name).strip()
+
+    # Common date patterns to check
+    date_patterns = [
+        r'^\d{1,2}/\d{1,2}/\d{2,4}$',  # M/D/YY or MM/DD/YYYY
+        r'^\d{1,2}-\d{1,2}-\d{2,4}$',  # M-D-YY or MM-DD-YYYY
+        r'^\d{4}-\d{1,2}-\d{1,2}$',    # YYYY-MM-DD
+        r'^\d{1,2}\.\d{1,2}\.\d{2,4}$',  # M.D.YY or MM.DD.YYYY
+        r'^(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+\d{1,2},?\s*\d{2,4}$',  # Mon D, YYYY
+        r'^\d{1,2}\s+(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+\d{2,4}$',  # D Mon YYYY
+        r'^(January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{1,2},?\s*\d{2,4}$',
+    ]
+
+    # Check regex patterns
+    for pattern in date_patterns:
+        if re.match(pattern, column_str, re.IGNORECASE):
+            return True
+
+    # Try to parse as date using dateutil
+    try:
+        # Avoid false positives for simple numbers or common words
+        if column_str.isdigit() or len(column_str) < 4:
+            return False
+        # Check if it's a common non-date word
+        non_date_words = ['id', 'name', 'first', 'last', 'student', 'exam', 'test', 'quiz',
+                         'assignment', 'homework', 'participation', 'attendance', 'grade',
+                         'score', 'total', 'final', 'midterm', 'civics', 'other']
+        if column_str.lower() in non_date_words:
+            return False
+
+        parsed = date_parser.parse(column_str, fuzzy=False)
+        # If it parsed successfully and looks like a reasonable date
+        if parsed.year >= 2000 and parsed.year <= 2100:
+            return True
+    except (ValueError, TypeError, OverflowError):
+        pass
+
+    return False
+
+
+def detect_date_columns(columns, exclude_columns=None):
+    """Detect which columns are dates from a list of column names."""
+    if exclude_columns is None:
+        exclude_columns = []
+
+    date_columns = []
+    for col in columns:
+        if col not in exclude_columns and is_date_column(col):
+            date_columns.append(col)
+
+    return date_columns
 
 
 def parse_numbers_file(uploaded_file):
@@ -949,21 +1010,32 @@ def main():
                     st.info(f"📈 Found **{len(att_valid_students)}** valid students (excluding empty rows)")
 
                     # Select attendance date columns
-                    st.subheader("📅 Select Attendance Date Columns")
-                    st.caption("Select the columns that contain attendance dates (values should be 0 or 1)")
+                    st.subheader("📅 Attendance Date Columns")
 
                     # Get available columns (excluding identifier columns)
-                    available_date_columns = [col for col in att_df.columns if col not in att_identifier_columns]
+                    available_columns = [col for col in att_df.columns if col not in att_identifier_columns]
+
+                    # Auto-detect date columns
+                    auto_detected_dates = detect_date_columns(available_columns)
+
+                    if auto_detected_dates:
+                        st.success(f"Auto-detected **{len(auto_detected_dates)}** date columns")
+                        default_selection = auto_detected_dates
+                    else:
+                        st.warning("No date columns auto-detected. Please select manually.")
+                        default_selection = []
+
+                    st.caption("Columns with date names are auto-selected. You can modify the selection if needed.")
 
                     attendance_columns = st.multiselect(
                         "Select date columns",
-                        options=available_date_columns,
-                        default=available_date_columns,
+                        options=available_columns,
+                        default=default_selection,
                         key="attendance_columns"
                     )
 
                     if attendance_columns:
-                        st.success(f"Selected **{len(attendance_columns)}** attendance date columns")
+                        st.info(f"**{len(attendance_columns)}** attendance date columns selected")
 
                         st.divider()
 
