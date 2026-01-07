@@ -118,7 +118,30 @@ def parse_numbers_file(uploaded_file):
                 else:
                     data.append(row_data)
 
-            df = pd.DataFrame(data, columns=headers)
+            # Convert headers to strings and handle datetime objects
+            processed_headers = []
+            for i, h in enumerate(headers):
+                if h is None or h == "":
+                    # Generate unique name for empty columns
+                    processed_headers.append(f"Column_{i+1}")
+                elif isinstance(h, datetime):
+                    # Convert datetime to string format
+                    processed_headers.append(h.strftime("%m/%d/%Y"))
+                else:
+                    processed_headers.append(str(h))
+
+            # Handle duplicate column names by appending a suffix
+            seen = {}
+            unique_headers = []
+            for h in processed_headers:
+                if h in seen:
+                    seen[h] += 1
+                    unique_headers.append(f"{h}_{seen[h]}")
+                else:
+                    seen[h] = 0
+                    unique_headers.append(h)
+
+            df = pd.DataFrame(data, columns=unique_headers)
             return df
 
         except ImportError:
