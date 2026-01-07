@@ -579,6 +579,14 @@ def create_attendance_excel(df, id_column, first_name_column, last_name_column, 
         ws.cell(row=current_row, column=2).alignment = center_align
         current_row += 1
 
+        total_absent = total_days - total_present
+        ws.cell(row=current_row, column=1, value="Days Absent:")
+        ws.cell(row=current_row, column=2, value=total_absent)
+        ws.cell(row=current_row, column=1).border = border
+        ws.cell(row=current_row, column=2).border = border
+        ws.cell(row=current_row, column=2).alignment = center_align
+        current_row += 1
+
         ws.cell(row=current_row, column=1, value="Total Days:")
         ws.cell(row=current_row, column=2, value=total_days)
         ws.cell(row=current_row, column=1).border = border
@@ -845,7 +853,7 @@ def main():
 
                     col_options = df.columns.tolist()
 
-                    id_col, fname_col, lname_col = st.columns(3)
+                    id_col, lname_col, fname_col = st.columns(3)
                     with id_col:
                         id_column = st.selectbox(
                             "ID Column",
@@ -853,19 +861,19 @@ def main():
                             index=0 if len(col_options) > 0 else None,
                             key="grades_id_col"
                         )
-                    with fname_col:
-                        first_name_column = st.selectbox(
-                            "First Name Column",
-                            options=col_options,
-                            index=1 if len(col_options) > 1 else 0,
-                            key="grades_fname_col"
-                        )
                     with lname_col:
                         last_name_column = st.selectbox(
                             "Last Name Column",
                             options=col_options,
-                            index=2 if len(col_options) > 2 else 0,
+                            index=1 if len(col_options) > 1 else 0,
                             key="grades_lname_col"
+                        )
+                    with fname_col:
+                        first_name_column = st.selectbox(
+                            "First Name Column",
+                            options=col_options,
+                            index=2 if len(col_options) > 2 else 0,
+                            key="grades_fname_col"
                         )
 
                     # Count valid students (rows where at least one identifier is not empty)
@@ -1000,7 +1008,7 @@ def main():
 
                     att_col_options = att_df.columns.tolist()
 
-                    id_col, fname_col, lname_col = st.columns(3)
+                    id_col, lname_col, fname_col = st.columns(3)
                     with id_col:
                         att_id_column = st.selectbox(
                             "ID Column",
@@ -1008,19 +1016,19 @@ def main():
                             index=0 if len(att_col_options) > 0 else None,
                             key="att_id_col"
                         )
-                    with fname_col:
-                        att_first_name_column = st.selectbox(
-                            "First Name Column",
-                            options=att_col_options,
-                            index=1 if len(att_col_options) > 1 else 0,
-                            key="att_fname_col"
-                        )
                     with lname_col:
                         att_last_name_column = st.selectbox(
                             "Last Name Column",
                             options=att_col_options,
-                            index=2 if len(att_col_options) > 2 else 0,
+                            index=1 if len(att_col_options) > 1 else 0,
                             key="att_lname_col"
+                        )
+                    with fname_col:
+                        att_first_name_column = st.selectbox(
+                            "First Name Column",
+                            options=att_col_options,
+                            index=2 if len(att_col_options) > 2 else 0,
+                            key="att_fname_col"
                         )
 
                     # Count valid students
