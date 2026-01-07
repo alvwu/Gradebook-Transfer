@@ -872,26 +872,39 @@ def main():
 
                     col_options = df.columns.tolist()
 
+                    # Auto-detect column indices based on column names
+                    def find_column_index(columns, keywords, default=0):
+                        for i, col in enumerate(columns):
+                            col_lower = str(col).lower()
+                            for keyword in keywords:
+                                if keyword in col_lower:
+                                    return i
+                        return default
+
+                    id_index = find_column_index(col_options, ['id', 'student id', 'studentid'], 0)
+                    lname_index = find_column_index(col_options, ['last name', 'lastname', 'last_name', 'lname'], 1 if len(col_options) > 1 else 0)
+                    fname_index = find_column_index(col_options, ['first name', 'firstname', 'first_name', 'fname'], 2 if len(col_options) > 2 else 0)
+
                     id_col, lname_col, fname_col = st.columns(3)
                     with id_col:
                         id_column = st.selectbox(
                             "ID Column",
                             options=col_options,
-                            index=0 if len(col_options) > 0 else None,
+                            index=id_index,
                             key="grades_id_col"
                         )
                     with lname_col:
                         last_name_column = st.selectbox(
                             "Last Name Column",
                             options=col_options,
-                            index=1 if len(col_options) > 1 else 0,
+                            index=lname_index,
                             key="grades_lname_col"
                         )
                     with fname_col:
                         first_name_column = st.selectbox(
                             "First Name Column",
                             options=col_options,
-                            index=2 if len(col_options) > 2 else 0,
+                            index=fname_index,
                             key="grades_fname_col"
                         )
 
@@ -948,6 +961,7 @@ def main():
                             st.success("✅ Excel file generated successfully!")
 
                             # Summary
+                            category_avg_item = "<li>Category averages (%)</li>" if show_category_averages else ""
                             st.markdown(f"""
                             <div class="success-box">
                                 <h4>✨ Generation Complete!</h4>
@@ -957,7 +971,7 @@ def main():
                                     <li>Student ID, First Name, and Last Name</li>
                                     <li>All assignments organized by category</li>
                                     <li>Scores with max points</li>
-                                    {"<li>Category averages (%)</li>" if show_category_averages else ""}
+                                    {category_avg_item}
                                     <li>Weighted grades breakdown by category</li>
                                     <li>Final weighted grade</li>
                                 </ul>
@@ -1027,26 +1041,39 @@ def main():
 
                     att_col_options = att_df.columns.tolist()
 
+                    # Auto-detect column indices based on column names
+                    def find_column_index(columns, keywords, default=0):
+                        for i, col in enumerate(columns):
+                            col_lower = str(col).lower()
+                            for keyword in keywords:
+                                if keyword in col_lower:
+                                    return i
+                        return default
+
+                    att_id_index = find_column_index(att_col_options, ['id', 'student id', 'studentid'], 0)
+                    att_lname_index = find_column_index(att_col_options, ['last name', 'lastname', 'last_name', 'lname'], 1 if len(att_col_options) > 1 else 0)
+                    att_fname_index = find_column_index(att_col_options, ['first name', 'firstname', 'first_name', 'fname'], 2 if len(att_col_options) > 2 else 0)
+
                     id_col, lname_col, fname_col = st.columns(3)
                     with id_col:
                         att_id_column = st.selectbox(
                             "ID Column",
                             options=att_col_options,
-                            index=0 if len(att_col_options) > 0 else None,
+                            index=att_id_index,
                             key="att_id_col"
                         )
                     with lname_col:
                         att_last_name_column = st.selectbox(
                             "Last Name Column",
                             options=att_col_options,
-                            index=1 if len(att_col_options) > 1 else 0,
+                            index=att_lname_index,
                             key="att_lname_col"
                         )
                     with fname_col:
                         att_first_name_column = st.selectbox(
                             "First Name Column",
                             options=att_col_options,
-                            index=2 if len(att_col_options) > 2 else 0,
+                            index=att_fname_index,
                             key="att_fname_col"
                         )
 
