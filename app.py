@@ -215,8 +215,14 @@ def create_student_excel(df, id_column, first_name_column, last_name_column, cat
     if category_weights is None:
         category_weights = {}
 
+    # Sort dataframe by last name alphabetically
+    df_sorted = df.copy()
+    df_sorted['_sort_key'] = df_sorted[last_name_column].astype(str).str.lower()
+    df_sorted = df_sorted.sort_values('_sort_key')
+    df_sorted = df_sorted.drop('_sort_key', axis=1)
+
     # Create a sheet for each student
-    for idx, row in df.iterrows():
+    for idx, row in df_sorted.iterrows():
         student_id = str(row[id_column]).strip() if pd.notna(row[id_column]) else ""
         first_name = str(row[first_name_column]).strip() if pd.notna(row[first_name_column]) else ""
         last_name = str(row[last_name_column]).strip() if pd.notna(row[last_name_column]) else ""
@@ -473,8 +479,14 @@ def create_attendance_excel(df, id_column, first_name_column, last_name_column, 
     present_fill = PatternFill(start_color="C6EFCE", end_color="C6EFCE", fill_type="solid")  # Green for 1 (present)
     absent_fill = PatternFill(start_color="FFC7CE", end_color="FFC7CE", fill_type="solid")  # Light red/orange for 0 (absent)
 
+    # Sort dataframe by last name alphabetically
+    df_sorted = df.copy()
+    df_sorted['_sort_key'] = df_sorted[last_name_column].astype(str).str.lower()
+    df_sorted = df_sorted.sort_values('_sort_key')
+    df_sorted = df_sorted.drop('_sort_key', axis=1)
+
     # Create a sheet for each student
-    for idx, row in df.iterrows():
+    for idx, row in df_sorted.iterrows():
         student_id = str(row[id_column]).strip() if pd.notna(row[id_column]) else ""
         first_name = str(row[first_name_column]).strip() if pd.notna(row[first_name_column]) else ""
         last_name = str(row[last_name_column]).strip() if pd.notna(row[last_name_column]) else ""
@@ -642,6 +654,13 @@ def main():
             background-color: #d4edda;
             border: 1px solid #c3e6cb;
             margin: 1rem 0;
+            color: #155724;
+        }
+        .success-box h4 {
+            color: #155724;
+        }
+        .success-box p, .success-box li {
+            color: #155724;
         }
         .info-box {
             padding: 1rem;
