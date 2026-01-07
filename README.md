@@ -1,9 +1,10 @@
 # GradeBook Transfer
 
-A Streamlit web application that converts Apple Numbers gradebook files into organized Excel workbooks with individual student sheets.
+A Streamlit web application that converts Apple Numbers gradebook files into organized Excel workbooks with individual student sheets. Includes both grade transfer and attendance tracking features.
 
 ## Features
 
+### Grade Transfer Tab
 - **Numbers to Excel Conversion**: Upload `.numbers` files and convert them to `.xlsx` format
 - **Individual Student Sheets**: Each student gets their own Excel sheet named "Last Name, First Name"
 - **Student Identification**: Separate columns for ID, First Name, and Last Name displayed at the top of each sheet
@@ -11,6 +12,15 @@ A Streamlit web application that converts Apple Numbers gradebook files into org
 - **Configurable Max Points**: Set the maximum points for each category (e.g., Exams out of 100, Participation out of 1)
 - **Weighted Grading**: Assign weight percentages to each category for final grade calculation
 - **Empty Row Filtering**: Automatically skips rows with blank student identifiers
+
+### Attendance Tab
+- **Attendance Tracking**: Convert attendance data from Numbers to organized Excel sheets
+- **Individual Student Sheets**: Each student gets their own sheet with attendance records
+- **Date Selection**: Choose which columns represent attendance dates
+- **Color-Coded Grades**:
+  - Green highlight for present (1)
+  - Orange highlight for absent (0)
+- **Attendance Summary**: Each sheet includes days present, total days, and attendance rate percentage
 
 ## Installation
 
@@ -28,7 +38,8 @@ A Streamlit web application that converts Apple Numbers gradebook files into org
 
 ## Usage
 
-1. **Upload**: Drag and drop your `.numbers` gradebook file
+### Grade Transfer
+1. **Upload**: Drag and drop your `.numbers` gradebook file in the "Grade Transfer" tab
 2. **Select Columns**: Choose which columns contain Student ID, First Name, and Last Name
 3. **Configure Categories** (in sidebar):
    - Add/remove categories with keywords
@@ -37,8 +48,16 @@ A Streamlit web application that converts Apple Numbers gradebook files into org
 4. **Generate**: Click "Generate Excel File" to create the workbook
 5. **Download**: Download the organized Excel file
 
+### Attendance
+1. **Upload**: Drag and drop your `.numbers` attendance file in the "Attendance" tab
+2. **Select Columns**: Choose which columns contain Student ID, First Name, and Last Name
+3. **Select Dates**: Choose which columns represent attendance dates (values should be 0 or 1)
+4. **Generate**: Click "Generate Attendance Excel" to create the workbook
+5. **Download**: Download the color-coded attendance Excel file
+
 ## Excel Output Structure
 
+### Grade Transfer Output
 Each student sheet contains:
 
 | Section | Description |
@@ -48,6 +67,15 @@ Each student sheet contains:
 | **Category Averages** | (Optional) Percentage average for each category |
 | **Weighted Grades** | Breakdown showing each category's score, weight, and weighted contribution |
 | **Final Weighted Grade** | The calculated final grade based on category weights |
+
+### Attendance Output
+Each student sheet contains:
+
+| Section | Description |
+|---------|-------------|
+| **Header** | ID, First Name, Last Name |
+| **Attendance Records** | Date and attendance value (0 or 1), color-coded |
+| **Summary** | Days present, total days, and attendance rate percentage |
 
 ## Default Categories
 
