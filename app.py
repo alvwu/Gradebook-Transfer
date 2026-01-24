@@ -175,7 +175,7 @@ def categorize_columns(columns, category_keywords):
     return categorized, uncategorized
 
 
-def create_student_excel(df, id_column, first_name_column, last_name_column, category_keywords, show_category_averages, category_max_points=None, category_weights=None):
+def create_student_excel(df, id_column, first_name_column, last_name_column, category_keywords, show_category_averages, category_max_points=None, category_weights=None, item_max_points=None):
     """Create an Excel file with each student on their own sheet."""
     output = io.BytesIO()
     wb = Workbook()
@@ -199,6 +199,7 @@ def create_student_excel(df, id_column, first_name_column, last_name_column, cat
     category_fill = PatternFill(start_color="B4C6E7", end_color="B4C6E7", fill_type="solid")
     category_font = Font(bold=True, size=11)
     weight_fill = PatternFill(start_color="FCE4D6", end_color="FCE4D6", fill_type="solid")  # Light orange for weighted section
+    excused_fill = PatternFill(start_color="E2EFDA", end_color="E2EFDA", fill_type="solid")  # Light green for excused
     border = Border(
         left=Side(style='thin'),
         right=Side(style='thin'),
@@ -214,6 +215,10 @@ def create_student_excel(df, id_column, first_name_column, last_name_column, cat
     # Initialize category_weights if not provided
     if category_weights is None:
         category_weights = {}
+
+    # Initialize item_max_points if not provided
+    if item_max_points is None:
+        item_max_points = {}
 
     # Sort dataframe by last name alphabetically
     df_sorted = df.copy()
@@ -269,6 +274,7 @@ def create_student_excel(df, id_column, first_name_column, last_name_column, cat
         all_grades = []
         all_max_points = []
         category_averages = {}
+        total_excused = 0  # Track total excused assignments
 
         # Add headers
         ws.cell(row=current_row, column=1, value="Assignment")
@@ -293,29 +299,48 @@ def create_student_excel(df, id_column, first_name_column, last_name_column, cat
             ws.merge_cells(start_row=current_row, start_column=1, end_row=current_row, end_column=3)
             current_row += 1
 
-            # Get max points for this category
-            max_points = category_max_points.get(category, 100)
+            # Get default max points for this category
+            default_max_points = category_max_points.get(category, 100)
 
             category_grades = []
             category_max = []
             for col in columns:
-                try:
-                    grade = float(row[col]) if pd.notna(row[col]) and row[col] != '' else 0
-                except (ValueError, TypeError):
-                    grade = 0
+                cell_value = row[col]
+                is_excused = False
+
+                # Check if the grade is excused (E or e)
+                if pd.notna(cell_value) and str(cell_value).strip().upper() == 'E':
+                    is_excused = True
+                    grade = 'E'
+                    total_excused += 1
+                else:
+                    try:
+                        grade = float(cell_value) if pd.notna(cell_value) and cell_value != '' else 0
+                    except (ValueError, TypeError):
+                        grade = 0
+
+                # Use per-item max points if set, otherwise use category default
+                max_points = item_max_points.get(col, default_max_points)
 
                 ws.cell(row=current_row, column=1, value=col)
                 ws.cell(row=current_row, column=2, value=grade)
-                ws.cell(row=current_row, column=3, value=max_points)
+                ws.cell(row=current_row, column=3, value=max_points if not is_excused else "Excused")
                 for c in range(1, 4):
                     ws.cell(row=current_row, column=c).border = border
                 ws.cell(row=current_row, column=2).alignment = center_align
                 ws.cell(row=current_row, column=3).alignment = center_align
 
-                category_grades.append(grade)
-                category_max.append(max_points)
-                all_grades.append(grade)
-                all_max_points.append(max_points)
+                # Apply excused styling
+                if is_excused:
+                    for c in range(1, 4):
+                        ws.cell(row=current_row, column=c).fill = excused_fill
+                else:
+                    # Only count non-excused grades toward averages
+                    category_grades.append(grade)
+                    category_max.append(max_points)
+                    all_grades.append(grade)
+                    all_max_points.append(max_points)
+
                 current_row += 1
 
             # Calculate category average as percentage
@@ -334,29 +359,48 @@ def create_student_excel(df, id_column, first_name_column, last_name_column, cat
             ws.merge_cells(start_row=current_row, start_column=1, end_row=current_row, end_column=3)
             current_row += 1
 
-            # Get max points for "Other" category
-            other_max_points = category_max_points.get("Other", 100)
+            # Get default max points for "Other" category
+            default_other_max_points = category_max_points.get("Other", 100)
 
             other_grades = []
             other_max = []
             for col in uncategorized:
-                try:
-                    grade = float(row[col]) if pd.notna(row[col]) and row[col] != '' else 0
-                except (ValueError, TypeError):
-                    grade = 0
+                cell_value = row[col]
+                is_excused = False
+
+                # Check if the grade is excused (E or e)
+                if pd.notna(cell_value) and str(cell_value).strip().upper() == 'E':
+                    is_excused = True
+                    grade = 'E'
+                    total_excused += 1
+                else:
+                    try:
+                        grade = float(cell_value) if pd.notna(cell_value) and cell_value != '' else 0
+                    except (ValueError, TypeError):
+                        grade = 0
+
+                # Use per-item max points if set, otherwise use "Other" default
+                other_max_points = item_max_points.get(col, default_other_max_points)
 
                 ws.cell(row=current_row, column=1, value=col)
                 ws.cell(row=current_row, column=2, value=grade)
-                ws.cell(row=current_row, column=3, value=other_max_points)
+                ws.cell(row=current_row, column=3, value=other_max_points if not is_excused else "Excused")
                 for c in range(1, 4):
                     ws.cell(row=current_row, column=c).border = border
                 ws.cell(row=current_row, column=2).alignment = center_align
                 ws.cell(row=current_row, column=3).alignment = center_align
 
-                other_grades.append(grade)
-                other_max.append(other_max_points)
-                all_grades.append(grade)
-                all_max_points.append(other_max_points)
+                # Apply excused styling
+                if is_excused:
+                    for c in range(1, 4):
+                        ws.cell(row=current_row, column=c).fill = excused_fill
+                else:
+                    # Only count non-excused grades toward averages
+                    other_grades.append(grade)
+                    other_max.append(other_max_points)
+                    all_grades.append(grade)
+                    all_max_points.append(other_max_points)
+
                 current_row += 1
 
             if other_grades and other_max:
@@ -443,6 +487,19 @@ def create_student_excel(df, id_column, first_name_column, last_name_column, cat
                 ws.cell(row=current_row, column=col).border = border
             ws.cell(row=current_row, column=2).alignment = center_align
             ws.cell(row=current_row, column=3).alignment = center_align
+
+        # Add excused summary if there are any excused assignments
+        if total_excused > 0:
+            current_row += 2
+
+            ws.cell(row=current_row, column=1, value="EXCUSED ASSIGNMENTS")
+            ws.cell(row=current_row, column=2, value=total_excused)
+            ws.cell(row=current_row, column=1).font = Font(bold=True, size=11)
+            ws.cell(row=current_row, column=2).font = Font(bold=True, size=11)
+            for col in range(1, 4):
+                ws.cell(row=current_row, column=col).fill = excused_fill
+                ws.cell(row=current_row, column=col).border = border
+            ws.cell(row=current_row, column=2).alignment = center_align
 
         # Adjust column widths
         ws.column_dimensions['A'].width = 35
@@ -709,7 +766,7 @@ def main():
                 "El Civics": ["el civics", "civics", "elcivics"]
             }
 
-        # Initialize session state for category max points
+        # Initialize session state for category max points (default for each category)
         if 'category_max_points' not in st.session_state:
             st.session_state.category_max_points = {
                 "Exams": 100,
@@ -718,6 +775,10 @@ def main():
                 "El Civics": 100,
                 "Other": 100
             }
+
+        # Initialize session state for per-item custom max points
+        if 'item_max_points' not in st.session_state:
+            st.session_state.item_max_points = {}
 
         # Initialize session state for category weights (percentages)
         if 'category_weights' not in st.session_state:
@@ -940,6 +1001,51 @@ def main():
                         else:
                             st.write("All columns are categorized!")
 
+                    # Custom max points per item
+                    st.subheader("🎯 Custom Max Points Per Item")
+                    st.caption("Override the default max points for specific assignments. Leave blank to use the category default.")
+
+                    with st.expander("Customize individual item max points", expanded=False):
+                        for category, columns in categorized.items():
+                            default_max = st.session_state.category_max_points.get(category, 100)
+                            st.markdown(f"**{category}** (default: {default_max} pts)")
+                            for col in columns:
+                                col_key = f"item_max_{col}"
+                                current_val = st.session_state.item_max_points.get(col)
+                                custom_max = st.number_input(
+                                    f"{col}",
+                                    min_value=1,
+                                    value=current_val if current_val else default_max,
+                                    key=col_key,
+                                    help=f"Custom max points for {col}"
+                                )
+                                # Only store if different from default
+                                if custom_max != default_max:
+                                    st.session_state.item_max_points[col] = custom_max
+                                elif col in st.session_state.item_max_points:
+                                    del st.session_state.item_max_points[col]
+
+                        if uncategorized:
+                            default_other = st.session_state.category_max_points.get("Other", 100)
+                            st.markdown(f"**Other** (default: {default_other} pts)")
+                            for col in uncategorized:
+                                col_key = f"item_max_{col}"
+                                current_val = st.session_state.item_max_points.get(col)
+                                custom_max = st.number_input(
+                                    f"{col}",
+                                    min_value=1,
+                                    value=current_val if current_val else default_other,
+                                    key=col_key,
+                                    help=f"Custom max points for {col}"
+                                )
+                                if custom_max != default_other:
+                                    st.session_state.item_max_points[col] = custom_max
+                                elif col in st.session_state.item_max_points:
+                                    del st.session_state.item_max_points[col]
+
+                        if st.session_state.item_max_points:
+                            st.info(f"📝 {len(st.session_state.item_max_points)} item(s) have custom max points")
+
                     st.divider()
 
                     # Generate Excel
@@ -955,7 +1061,8 @@ def main():
                                 st.session_state.categories,
                                 show_category_averages,
                                 st.session_state.category_max_points,
-                                st.session_state.category_weights
+                                st.session_state.category_weights,
+                                st.session_state.item_max_points
                             )
 
                             st.success("✅ Excel file generated successfully!")
