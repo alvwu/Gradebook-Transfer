@@ -201,6 +201,7 @@ def create_student_excel(df, id_column, first_name_column, last_name_column, cat
     weight_fill = PatternFill(start_color="FCE4D6", end_color="FCE4D6", fill_type="solid")  # Light orange for weighted section
     excused_fill = PatternFill(start_color="FFE699", end_color="FFE699", fill_type="solid")  # Light orange/yellow for excused
     zero_score_fill = PatternFill(start_color="FFCCCB", end_color="FFCCCB", fill_type="solid")  # Light red for zero scores
+    score_fill = PatternFill(start_color="C6EFCE", end_color="C6EFCE", fill_type="solid")  # Light green for scores above zero
     border = Border(
         left=Side(style='thin'),
         right=Side(style='thin'),
@@ -345,7 +346,10 @@ def create_student_excel(df, id_column, first_name_column, last_name_column, cat
                     all_grades.append(grade)
                     all_max_points.append(max_points)
                 else:
-                    # Only count non-excused grades toward averages
+                    # Highlight scores above zero with light green
+                    for c in range(1, 4):
+                        ws.cell(row=current_row, column=c).fill = score_fill
+                    # Count non-excused grades toward averages
                     category_grades.append(grade)
                     category_max.append(max_points)
                     all_grades.append(grade)
@@ -414,7 +418,10 @@ def create_student_excel(df, id_column, first_name_column, last_name_column, cat
                     all_grades.append(grade)
                     all_max_points.append(other_max_points)
                 else:
-                    # Only count non-excused grades toward averages
+                    # Highlight scores above zero with light green
+                    for c in range(1, 4):
+                        ws.cell(row=current_row, column=c).fill = score_fill
+                    # Count non-excused grades toward averages
                     other_grades.append(grade)
                     other_max.append(other_max_points)
                     all_grades.append(grade)
