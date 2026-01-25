@@ -199,7 +199,8 @@ def create_student_excel(df, id_column, first_name_column, last_name_column, cat
     category_fill = PatternFill(start_color="B4C6E7", end_color="B4C6E7", fill_type="solid")
     category_font = Font(bold=True, size=11)
     weight_fill = PatternFill(start_color="FCE4D6", end_color="FCE4D6", fill_type="solid")  # Light orange for weighted section
-    excused_fill = PatternFill(start_color="E2EFDA", end_color="E2EFDA", fill_type="solid")  # Light green for excused
+    excused_fill = PatternFill(start_color="FFE699", end_color="FFE699", fill_type="solid")  # Light orange/yellow for excused
+    zero_score_fill = PatternFill(start_color="FFCCCB", end_color="FFCCCB", fill_type="solid")  # Light red for zero scores
     border = Border(
         left=Side(style='thin'),
         right=Side(style='thin'),
@@ -277,7 +278,7 @@ def create_student_excel(df, id_column, first_name_column, last_name_column, cat
         total_excused = 0  # Track total excused assignments
 
         # Add headers
-        ws.cell(row=current_row, column=1, value="Assignment")
+        ws.cell(row=current_row, column=1, value="Categories")
         ws.cell(row=current_row, column=2, value="Score")
         ws.cell(row=current_row, column=3, value="Max Points")
         for col in range(1, 4):
@@ -330,10 +331,19 @@ def create_student_excel(df, id_column, first_name_column, last_name_column, cat
                 ws.cell(row=current_row, column=2).alignment = center_align
                 ws.cell(row=current_row, column=3).alignment = center_align
 
-                # Apply excused styling
+                # Apply styling based on grade status
                 if is_excused:
                     for c in range(1, 4):
                         ws.cell(row=current_row, column=c).fill = excused_fill
+                elif grade == 0:
+                    # Highlight zero scores with light red
+                    for c in range(1, 4):
+                        ws.cell(row=current_row, column=c).fill = zero_score_fill
+                    # Still count zero scores toward averages
+                    category_grades.append(grade)
+                    category_max.append(max_points)
+                    all_grades.append(grade)
+                    all_max_points.append(max_points)
                 else:
                     # Only count non-excused grades toward averages
                     category_grades.append(grade)
@@ -390,10 +400,19 @@ def create_student_excel(df, id_column, first_name_column, last_name_column, cat
                 ws.cell(row=current_row, column=2).alignment = center_align
                 ws.cell(row=current_row, column=3).alignment = center_align
 
-                # Apply excused styling
+                # Apply styling based on grade status
                 if is_excused:
                     for c in range(1, 4):
                         ws.cell(row=current_row, column=c).fill = excused_fill
+                elif grade == 0:
+                    # Highlight zero scores with light red
+                    for c in range(1, 4):
+                        ws.cell(row=current_row, column=c).fill = zero_score_fill
+                    # Still count zero scores toward averages
+                    other_grades.append(grade)
+                    other_max.append(other_max_points)
+                    all_grades.append(grade)
+                    all_max_points.append(other_max_points)
                 else:
                     # Only count non-excused grades toward averages
                     other_grades.append(grade)
